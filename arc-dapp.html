@@ -426,7 +426,7 @@ async function sendOnchain(type) {
       txHash = tx.hash;
     } else {
       const data = '0x' + Array.from(new TextEncoder().encode(type)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: ethers.parseUnits('0','ether'), data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0', data });
       toast('⏳ ' + type + ' TX submitted...');
       await tx.wait();
       txHash = tx.hash;
@@ -459,7 +459,7 @@ async function castVote(id, opt) {
       txHash = tx.hash;
     } else {
       const data = '0x' + Array.from(new TextEncoder().encode('vote:' + id + ':' + opt)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: ethers.parseUnits('0','ether'), data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0', data });
       toast('⏳ Vote TX submitted...');
       await tx.wait();
       txHash = tx.hash;
@@ -496,7 +496,7 @@ async function submitProposal() {
       txHash = tx.hash;
     } else {
       const data = '0x' + Array.from(new TextEncoder().encode('proposal:' + text)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: ethers.parseUnits('0','ether'), data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0', data });
       toast('⏳ Proposal TX submitted...');
       await tx.wait();
       txHash = tx.hash;
