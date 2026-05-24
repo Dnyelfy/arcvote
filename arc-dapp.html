@@ -285,7 +285,7 @@ footer{margin-top:auto;padding:28px 0;border-top:0.5px solid var(--border);posit
 <footer>
   <div class="container">
     <div class="footer-inner">
-      <span class="footer-l">ArcVote · Arc Testnet · Chain ID 5042002</span>
+      <span class="footer-l">Built by <a href="https://x.com/dnyelfy" target="_blank" style="color:var(--accent);text-decoration:none;">@dnyelfy</a> · Arc Testnet · Chain ID 5042002</span>
       <div class="footer-links">
         <a href="https://docs.arc.io" target="_blank">Docs</a>
         <a href="https://faucet.circle.com" target="_blank">Faucet</a>
@@ -426,7 +426,7 @@ async function sendOnchain(type) {
       txHash = tx.hash;
     } else {
       const data = '0x' + Array.from(new TextEncoder().encode(type)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: 0n, data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: ethers.parseUnits('0','ether'), data });
       toast('⏳ ' + type + ' TX submitted...');
       await tx.wait();
       txHash = tx.hash;
@@ -459,7 +459,7 @@ async function castVote(id, opt) {
       txHash = tx.hash;
     } else {
       const data = '0x' + Array.from(new TextEncoder().encode('vote:' + id + ':' + opt)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: 0n, data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: ethers.parseUnits('0','ether'), data });
       toast('⏳ Vote TX submitted...');
       await tx.wait();
       txHash = tx.hash;
@@ -496,7 +496,7 @@ async function submitProposal() {
       txHash = tx.hash;
     } else {
       const data = '0x' + Array.from(new TextEncoder().encode('proposal:' + text)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: 0n, data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: ethers.parseUnits('0','ether'), data });
       toast('⏳ Proposal TX submitted...');
       await tx.wait();
       txHash = tx.hash;
