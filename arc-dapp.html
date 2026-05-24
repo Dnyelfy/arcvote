@@ -425,8 +425,7 @@ async function sendOnchain(type) {
       await tx.wait();
       txHash = tx.hash;
     } else {
-      const data = '0x' + Array.from(new TextEncoder().encode(type)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0', data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0' });
       toast('⏳ ' + type + ' TX submitted...');
       await tx.wait();
       txHash = tx.hash;
@@ -458,8 +457,7 @@ async function castVote(id, opt) {
       await tx.wait();
       txHash = tx.hash;
     } else {
-      const data = '0x' + Array.from(new TextEncoder().encode('vote:' + id + ':' + opt)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0', data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0' });
       toast('⏳ Vote TX submitted...');
       await tx.wait();
       txHash = tx.hash;
@@ -495,8 +493,7 @@ async function submitProposal() {
       await tx.wait();
       txHash = tx.hash;
     } else {
-      const data = '0x' + Array.from(new TextEncoder().encode('proposal:' + text)).map(b => b.toString(16).padStart(2,'0')).join('');
-      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0', data });
+      const tx = await signer.sendTransaction({ to: userAddress, value: '0x0' });
       toast('⏳ Proposal TX submitted...');
       await tx.wait();
       txHash = tx.hash;
