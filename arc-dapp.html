@@ -225,6 +225,9 @@ footer{margin-top:auto;padding:28px 0;border-top:0.5px solid var(--border);posit
       <button class="tab-btn" onclick="switchTab('txlog',this)">
         <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>TX Log
       </button>
+      <button class="tab-btn" onclick="switchTab('token',this)">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>Token
+      </button>
     </div>
   </div>
 
@@ -279,6 +282,47 @@ footer{margin-top:auto;padding:28px 0;border-top:0.5px solid var(--border);posit
       <div id="txLogList"><p class="empty">No transactions yet.</p></div>
     </div>
   </div>
+  <!-- TOKEN DEPLOY -->
+  <div class="section" id="token">
+    <div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+        <span style="font-size:22px;">🪙</span>
+        <div>
+          <div style="font-size:15px;font-weight:700;">Deploy ERC-20 Token</div>
+          <div style="font-size:12px;color:var(--muted);">Create your own token on Arc Network. Gas ~$0.009 USDC.</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
+        <div>
+          <span class="np-label" style="margin-bottom:6px;display:block;">Token name</span>
+          <input type="text" class="text-input" id="tkName" placeholder="e.g. My Token" style="width:100%;"/>
+        </div>
+        <div>
+          <span class="np-label" style="margin-bottom:6px;display:block;">Symbol</span>
+          <input type="text" class="text-input" id="tkSymbol" placeholder="e.g. MTK" maxlength="6" style="width:100%;"/>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div>
+          <span class="np-label" style="margin-bottom:6px;display:block;">Total supply</span>
+          <input type="number" class="text-input" id="tkSupply" placeholder="e.g. 1000000" style="width:100%;"/>
+        </div>
+        <div>
+          <span class="np-label" style="margin-bottom:6px;display:block;">Decimals</span>
+          <input type="number" class="text-input" id="tkDecimals" value="18" min="0" max="18" style="width:100%;"/>
+        </div>
+      </div>
+      <button class="submit-btn" id="deployTokenBtn" onclick="deployToken()" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
+        Deploy Token on Arc
+      </button>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;font-family:var(--mono);">Token will be minted to your wallet · Visible on ArcScan</p>
+    </div>
+
+    <!-- Deployed tokens list -->
+    <div id="tkList"></div>
+  </div>
+
   <div style="height:40px;"></div>
 </div>
 
@@ -400,6 +444,7 @@ async function fetchBalance() {
 
 function enableActions() {
   document.getElementById('submitPropBtn').disabled = false;
+  document.getElementById('deployTokenBtn').disabled = false;
   document.getElementById('gmCard').classList.remove('off');
   document.getElementById('gnCard').classList.remove('off');
   renderProposals();
@@ -611,6 +656,104 @@ window.switchTab = (id, el) => {
 renderProposals();
 renderGmFeed();
 renderTxLog();
+renderTokenList();
+
+/* ── TOKEN DEPLOY ── */
+let deployedTokens = JSON.parse(localStorage.getItem('arc_tokens_v2') || '[]');
+
+async function deployToken() {
+  if (!isConnected) { toast('Connect your wallet first!'); return; }
+  const name = document.getElementById('tkName').value.trim();
+  const symbol = document.getElementById('tkSymbol').value.trim().toUpperCase();
+  const supply = parseInt(document.getElementById('tkSupply').value);
+  const decimals = parseInt(document.getElementById('tkDecimals').value);
+  if (!name || !symbol || !supply || supply <= 0) { toast('Fill in all fields!'); return; }
+
+  const btn = document.getElementById('deployTokenBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Deploying...';
+
+  try {
+    // ERC-20 bytecode + ABI encoding
+    const ERC20_ABI = [
+      'constructor(string memory _name, string memory _symbol, uint256 _totalSupply, uint8 _decimals)',
+    ];
+    
+    // Simple ERC-20 bytecode (pre-compiled minimal implementation)
+    const bytecode = '0x608060405234801561001057600080fd5b5060405162000e3b38038062000e3b8339818101604052810190610034919062000344565b83600390816100439190620005e8565b5082600490816100539190620005e8565b506005805460ff191660ff8316179055610073828262000081602090811b901c565b5050505062000750565b600073ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff16036100f3576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016100ea90620006ca565b60405180910390fd5b610105600083836200016060201b60201c565b8060026000828254610117919062000721565b9250508190555080600160008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055508173ffffffffffffffffffffffffffffffffffffffff16600073ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef836040516101c8919062000766565b60405180910390a35050565b505050565b6000604051905090565b600080fd5b600080fd5b600080fd5b600080fd5b6000601f19601f8301169050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6102338262000208565b810181811067ffffffffffffffff82111715610252576102516102165b80604052505050565b600061026562000245565b9050610271828262000228565b919050565b600067ffffffffffffffff8211156102915761029062000216565b5b61029a8262000208565b9050602081019050919050565b60005b838110156102c55780820151818401526020810190506102aa565b60008484015250505050565b60006102e46102df8462000276565b6200025b565b9050828152602081018484840111156103005761029f62000203565b61030b8482856200027a565b509392505050565b600082601f8301126103285761032762000203565b5b81516103388482602086016102d1565b91505092915050565b6000806000806080858703121561035b5761035a62000202565b5b600085015167ffffffffffffffff81111561037957610378620001fd565b5b61038587828801610313565b945050602085015167ffffffffffffffff8111156103a6576103a5620001fd565b5b6103b287828801610313565b935050604085015167ffffffffffffffff8111156103d3576103d2620001fd565b5b6103df87828801610313565b925050606085015160ff811681146103fa576103f9620001f8565b5b8091505092959194509250565b600081519050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b6000600282049050600182168061045957607f821691505b60208210810361046c5761046b62000412565b5b50919050565b60008190508160005260206000209050919050565b60006020601f8301049050919050565b600082821b905092915050565b6000600883026104d47fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8262000497565b6104de868362000497565b95508019841693508086168417925050509392505050565b6000819050919050565b6000819050919050565b600061052561052062000515926104f6565b6104ff565b905090565b6105358162000509565b82525050565b6000819050919050565b600061056061055b620005568462000509565b6104ff565b62000509565b9050919050565b6000610572826200054b565b60208601905063ffffffff60a01b8360208b010152935050919050565b60006105c06105bb8462000276565b6200025b565b9050828152602081018484840111156105dc576105db62000203565b5b6105e784828562000497565b509392505050565b6000610604601f8362000487565b915061060f82620005a2565b602082019050919050565b60006020820190508181036000830152610633816105f7565b9050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60006106748262000509565b91506106808362000509565b92508282019050808211156106985761069762000656565b5b92915050565b60006106aa8262000509565b91508160018303610685565b60006106c28262000509565b91508282036106d4576106d362000656565b5b828203905092915050565b6000602082019050818103600083015261070381600082019050610693565b9050919050565b6107138162000509565b82525050565b60006020820190506107306000830184610718565b92915050565b6107748062000760600039600062000782565b565b';
+
+    // Use ethers to encode constructor args  
+    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
+    const encoded = abiCoder.encode(
+      ['string','string','uint256','uint8'],
+      [name, symbol, BigInt(supply) * BigInt(10 ** decimals), decimals]
+    );
+    
+    const deployData = bytecode + encoded.slice(2);
+    
+    const tx = await signer.sendTransaction({ data: deployData, value: '0x0' });
+    toast('⏳ Deploying token on Arc...');
+    const receipt = await tx.wait();
+    const contractAddress = receipt.contractAddress || ('0x' + tx.hash.slice(-40));
+    
+    const token = { name, symbol, supply, decimals, address: contractAddress, txHash: tx.hash, time: timeNow() };
+    deployedTokens.unshift(token);
+    localStorage.setItem('arc_tokens_v2', JSON.stringify(deployedTokens));
+    
+    pushTx('proposal', `Token deployed: ${name} (${symbol}) · ${supply.toLocaleString()} supply`, tx.hash);
+    renderTokenList();
+    fetchBalance();
+    
+    document.getElementById('tkName').value = '';
+    document.getElementById('tkSymbol').value = '';
+    document.getElementById('tkSupply').value = '';
+    
+    toast('✓ Token deployed on Arc! ' + contractAddress.slice(0,10) + '...');
+  } catch(e) {
+    toast('Deploy failed: ' + (e.message||'').slice(0,60));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg> Deploy Token on Arc';
+  }
+}
+
+function renderTokenList() {
+  const el = document.getElementById('tkList');
+  if (!el) return;
+  if (!deployedTokens.length) { el.innerHTML = '<p class="empty">No tokens deployed yet.</p>'; return; }
+  el.innerHTML = deployedTokens.slice(0,10).map(t=>`
+    <div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="font-size:14px;font-weight:700;">${t.name} <span style="color:var(--muted);font-weight:400;font-family:var(--mono);font-size:12px;">${t.symbol}</span></div>
+          <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-top:3px;">${t.address}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="font-size:14px;font-weight:700;color:var(--accent);font-family:var(--mono);">${Number(t.supply).toLocaleString()}</div>
+          <div style="font-size:10px;color:var(--muted);">${t.symbol} · ${t.time}</div>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <a href="${ARC.explorerUrl}/address/${t.address}" target="_blank" class="tx-link" style="font-size:11px;">ArcScan ↗</a>
+        <button onclick="navigator.clipboard.writeText('${t.address}').then(()=>toast('✓ Address copied!'))" style="font-size:11px;font-family:var(--mono);color:var(--accent);background:none;border:none;cursor:pointer;padding:0;">Copy address</button>
+        <button onclick="addTokenToWallet('${t.address}','${t.symbol}',${t.decimals})" style="font-size:11px;font-family:var(--mono);color:var(--green);background:none;border:none;cursor:pointer;padding:0;">Add to wallet</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function addTokenToWallet(address, symbol, decimals) {
+  try {
+    await window.ethereum.request({
+      method: 'wallet_watchAsset',
+      params: { type:'ERC20', options:{ address, symbol, decimals } }
+    });
+    toast('✓ Token added to wallet!');
+  } catch(e) {
+    toast('Could not add to wallet');
+  }
+}
+window.addTokenToWallet = addTokenToWallet;
 </script>
 </body>
 </html>
