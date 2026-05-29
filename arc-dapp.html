@@ -366,11 +366,25 @@ const modal = createWeb3Modal({
 const EXPLORER = 'https://testnet.arcscan.app';
 const VOTING_CONTRACT = '0x8E3e06574B413915c1D7B6d0EE9EF67bca4dB29c';
 const GM_CONTRACT = '0xb94918f7e3f7b3d4Ad44d19Fee5CcDb2403F41a1';
+const BOARD_CONTRACT = '0xb21972fC3F5Bf13E883F1590D97e1CFabCF36514';
+const BOARD_ABI = [
+  'function post(string calldata text) external',
+  'event Message(address indexed sender, string text, uint256 timestamp)',
+];
 const VOTING_ABI = [
   'function addProposal(string calldata text) external',
   'function vote(uint256 proposalId, uint8 option) external',
+  'function proposalCount() external view returns (uint256)',
+  'function getProposal(uint256 id) external view returns (tuple(string text, address proposer, uint256 yesVotes, uint256 noVotes, uint256 abstainVotes, uint256 createdAt))',
+  'function hasVoted(address voter, uint256 proposalId) external view returns (bool)',
+  'event ProposalAdded(uint256 indexed id, string text, address indexed proposer)',
+  'event Voted(address indexed voter, uint256 indexed proposalId, uint8 option)',
 ];
-const GM_ABI = ['function gm() external', 'function gn() external'];
+const GM_ABI = [
+  'function gm() external',
+  'function gn() external',
+  'event Message(address indexed sender, string msg, uint256 timestamp)',
+];
 
 /* ── STATE ── */
 let provider, signer, userAddress, isConnected = false;
@@ -406,6 +420,7 @@ modal.subscribeProvider(async ({ provider: p, address, isConnected: ic }) => {
     document.getElementById('balChip').style.display = 'inline-flex';
     enableActions();
     toast('✓ Connected to Arc Testnet!');
+    loadFromChain();
   } else {
     isConnected = false;
     document.getElementById('balChip').style.display = 'none';
@@ -419,6 +434,68 @@ async function fetchBalance() {
     const f = parseFloat(formatUnits(bal, 18)).toFixed(4);
     document.getElementById('balChip').textContent = f + ' USDC';
   } catch {}
+}
+
+/* ── LOAD FROM CHAIN ── */
+async function loadFromChain() {
+  if (!provider) return;
+  try {
+    // Load proposals from contract
+    const votingContract = new Contract(VOTING_CONTRACT, VOTING_ABI, provider);
+    const count = await votingContract.proposalCount();
+    const countNum = Number(count);
+    if (countNum > 0) {
+      const chainProposals = [];
+      for (let i = 0; i < Math.min(countNum, 20); i++) {
+        try {
+          const p = await votingContract.getProposal(i);
+          const voted = userAddress ? await votingContract.hasVoted(userAddress, i) : false;
+          // Find if user voted (check localStorage for which option)
+          const localVote = proposals.find(lp => lp.id === i + 1);
+          chainProposals.push({
+            id: i + 1,
+            text: p.text,
+            yes: Number(p.yesVotes),
+            no: Number(p.noVotes),
+            abs: Number(p.abstainVotes),
+            tag: localVote?.tag || 'On-chain',
+            voted: voted ? (localVote?.voted || 'yes') : null,
+            txHash: localVote?.txHash || null,
+          });
+        } catch(e) {}
+      }
+      if (chainProposals.length > 0) {
+        proposals = chainProposals;
+        nextId = chainProposals.length + 1;
+        renderProposals();
+        toast('✓ Loaded ' + chainProposals.length + ' proposals from chain');
+      }
+    }
+  } catch(e) {
+    console.log('Chain load error:', e.message);
+  }
+
+  try {
+    // Load GM/GN events from contract
+    const gmContract = new Contract(GM_CONTRACT, GM_ABI, provider);
+    const filter = gmContract.filters.Message();
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 50000);
+    const events = await gmContract.queryFilter(filter, fromBlock, 'latest');
+    if (events.length > 0) {
+      gmFeed = events.reverse().slice(0, 20).map(e => ({
+        type: e.args.msg,
+        hash: e.transactionHash,
+        time: new Date(Number(e.args.timestamp) * 1000).toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'}),
+      }));
+      renderGmFeed();
+    }
+  } catch(e) {
+    console.log('GM load error:', e.message);
+  }
+
+  // Load board messages from chain
+  await loadBoardFromChain();
 }
 
 function enableActions() {
@@ -654,7 +731,8 @@ async function postBoardMsg() {
   btn.innerHTML = '<span class="spin"></span> Posting...';
 
   try {
-    const tx = await signer.sendTransaction({ to: userAddress, value: '0x0' });
+    const contract = new Contract(BOARD_CONTRACT, BOARD_ABI, signer);
+    const tx = await contract.post(msg);
     toast('⏳ Posting message on Arc...');
     await tx.wait();
 
@@ -668,7 +746,8 @@ async function postBoardMsg() {
     boardMessages.unshift(entry);
     localStorage.setItem('arc_board_v1', JSON.stringify(boardMessages));
     pushTx('vote', 'Board: "' + msg.slice(0,40) + (msg.length>40?'...':'') + '"', tx.hash);
-    renderBoard();
+    // Reload from chain
+    await loadBoardFromChain();
     fetchBalance();
     document.getElementById('boardMsg').value = '';
     toast('✓ Message posted on Arc!');
@@ -680,6 +759,30 @@ async function postBoardMsg() {
   }
 }
 window.postBoardMsg = postBoardMsg;
+
+async function loadBoardFromChain() {
+  if (!provider) return;
+  try {
+    const boardContract = new Contract(BOARD_CONTRACT, BOARD_ABI, provider);
+    const filter = boardContract.filters.Message();
+    const currentBlock = await provider.getBlockNumber();
+    const fromBlock = Math.max(0, currentBlock - 100000);
+    const events = await boardContract.queryFilter(filter, fromBlock, 'latest');
+    if (events.length > 0) {
+      boardMessages = events.reverse().slice(0, 30).map(e => ({
+        msg: e.args.text,
+        addr: e.args.sender,
+        short: e.args.sender.slice(0,6)+'...'+e.args.sender.slice(-4),
+        hash: e.transactionHash,
+        time: new Date(Number(e.args.timestamp) * 1000).toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}),
+      }));
+      localStorage.setItem('arc_board_v1', JSON.stringify(boardMessages));
+      renderBoard();
+    }
+  } catch(e) {
+    console.log('Board load error:', e.message);
+  }
+}
 
 function renderBoard() {
   const el = document.getElementById('boardList');
