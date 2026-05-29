@@ -72,7 +72,7 @@ w3m-button{--w3m-accent:#5b6bff;}
 .tab-btn.active{background:var(--bg3);color:var(--text);border:0.5px solid var(--border2);}
 .tab-btn:hover:not(.active){color:var(--text);}
 .section{display:none;animation:fadeIn 0.22s ease;}
-.section.active{display:block;}
+.section.active{display:block;}.modal-overlay.open{display:flex!important;}
 @keyframes fadeIn{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 
 .card{background:var(--bg2);border:0.5px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:14px;transition:border-color 0.2s;}
@@ -661,69 +661,71 @@ renderTokenList();
 /* ── TOKEN DEPLOY ── */
 let deployedTokens = JSON.parse(localStorage.getItem('arc_tokens_v2') || '[]');
 
-async function deployToken() {
-  if (!isConnected) { toast('Connect your wallet first!'); return; }
+function deployToken() {
   const name = document.getElementById('tkName').value.trim();
   const symbol = document.getElementById('tkSymbol').value.trim().toUpperCase();
-  const supply = parseInt(document.getElementById('tkSupply').value);
-  const decimals = parseInt(document.getElementById('tkDecimals').value);
-  if (!name || !symbol || !supply || supply <= 0) { toast('Fill in all fields!'); return; }
+  const supply = parseInt(document.getElementById('tkSupply').value) || 1000000;
+  const decimals = parseInt(document.getElementById('tkDecimals').value) || 18;
+  if (!name || !symbol) { toast('Fill in token name and symbol!'); return; }
 
-  const btn = document.getElementById('deployTokenBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> Deploying...';
+  // Generate Solidity code with user's values
+  const solidityCode = `// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.20;
 
-  try {
-    // Standard ERC-20 factory - deploy via ContractFactory
-    const ERC20_ABI = [
-      'constructor(string memory name_, string memory symbol_, uint256 totalSupply_, uint8 decimals_)',
-      'function name() view returns (string)',
-      'function symbol() view returns (string)',
-      'function decimals() view returns (uint8)',
-      'function totalSupply() view returns (uint256)',
-      'function balanceOf(address) view returns (uint256)',
-      'function transfer(address to, uint256 amount) returns (bool)',
-      'event Transfer(address indexed from, address indexed to, uint256 value)',
-    ];
+contract ${symbol}Token {
+    string public name = "${name}";
+    string public symbol = "${symbol}";
+    uint8 public decimals = ${decimals};
+    uint256 public totalSupply = ${supply} * 10**${decimals};
 
-    // OpenZeppelin-compatible ERC-20 bytecode (verified working)
-    const ERC20_BYTECODE = '0x60806040523480156200001157600080fd5b5060405162001a6538038062001a658339818101604052810190620000369190620002c8565b836003908162000047919062000570565b50826004908162000059919062000570565b508160058190555080600560008282546200007591906200065c565b9250508190555080600660003373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600082825401925050819055503373ffffffffffffffffffffffffffffffffffffffff16600073ffffffffffffffffffffffffffffffffffffffff167fddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef836040516200012791906200070a565b60405180910390a3505050506200073f565b6000604051905090565b600080fd5b600080fd5b600080fd5b600080fd5b6000601f19601f8301169050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6200019b8262000160565b810181811067ffffffffffffffff82111715620001bd57620001bc62000171565b5b80604052505050565b6000620001d262000139565b9050620001e0828262000190565b919050565b600067ffffffffffffffff82111562000203576200020262000171565b5b6200020e8262000160565b9050602081019050919050565b60005b838110156200023b5780820151818401526020810190506200021e565b60008484015250505050565b60006200025e6200025884620001e5565b620001c6565b9050828152602081018484840111156200027d576200027c6200015b565b5b6200028a8482856200021b565b509392505050565b600082601f830112620002aa57620002a962000156565b5b8151620002bc84826020860162000247565b91505092915050565b60008060008060808587031215620002e157620002e062000147565b5b600085015167ffffffffffffffff8111156200030257620003016200014c565b5b620003108782880162000292565b945050602085015167ffffffffffffffff8111156200033457620003336200014c565b5b620003428782880162000292565b935050604085015192506060850151915050925092925050565b600081519050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806200039f57607f821691505b602082108103620003b557620003b462000367565b5b50919050565b60008190508160005260206000209050919050565b60006020601f8301049050919050565b600082821b905092915050565b6000600883026200041f7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82620003e0565b6200042b8683620003e0565b95508019841693508086168417925050509392505050565b6000819050919050565b6000819050919050565b600062000478620004726200046c8462000443565b6200044d565b62000443565b9050919050565b6000819050919050565b620004948362000457565b620004ac620004a3826200047f565b848454620003ed565b825550505050565b600090565b620004c3620004b4565b620004d081848462000489565b505050565b5b81811015620004f857620004ec600082620004b9565b600181019050620004d6565b5050565b601f82111562000547576200051181620003bb565b6200051c84620003d0565b810160208510156200052c578190505b620005446200053b85620003d0565b830182620004d5565b50505b505050565b600082821c905092915050565b60006200056c600019846008026200054c565b1980831691505092915050565b600062000587838362000559565b9150826002028217905092915050565b620005a2826200035c565b67ffffffffffffffff811115620005be57620005bd62000171565b5b620005ca825462000396565b620005d7828285620004fc565b600060209050601f8311600181146200060f5760008415620005fa578287015190505b620006068582620005a8565b86555062000676565b601f1984166200061f86620003bb565b60005b82811015620006495784890151825560018201915060208501945060208101905062000622565b8683101562000669578489015162000665601f89168262000559565b8355505b6001600288020188555050505b505050505050565b60006200068b8262000443565b9150620006988362000443565b9250828201905080821115620006b357620006b262000696565b5b92915050565b6000819050919050565b620006ce81620006b9565b82525050565b6000819050919050565b6000620006fb620006f5620006ef84620006b9565b6200044d565b62000443565b9050919050565b6200070d81620006de565b82525050565b60006020820190506200072a600083018462000702565b92915050565b61131680620007406000396000f3fe';
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
 
-    // Encode constructor args
-    const abiCoder = ethers.AbiCoder.defaultAbiCoder();
-    const totalSupplyWei = BigInt(supply) * (BigInt(10) ** BigInt(decimals));
-    const encoded = abiCoder.encode(
-      ['string', 'string', 'uint256', 'uint8'],
-      [name, symbol, totalSupplyWei, decimals]
-    );
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
-    const deployData = ERC20_BYTECODE + encoded.slice(2);
-    toast('⏳ Deploying token on Arc...');
-    const tx = await signer.sendTransaction({ data: deployData, value: '0x0' });
-    toast('⏳ Waiting for confirmation...');
-    const receipt = await tx.wait();
-    const contractAddress = receipt.contractAddress;
+    constructor() {
+        balanceOf[msg.sender] = totalSupply;
+        emit Transfer(address(0), msg.sender, totalSupply);
+    }
 
-    const token = { name, symbol, supply, decimals, address: contractAddress, txHash: tx.hash, time: timeNow() };
-    deployedTokens.unshift(token);
-    localStorage.setItem('arc_tokens_v2', JSON.stringify(deployedTokens));
+    function transfer(address to, uint256 amount) external returns (bool) {
+        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
 
-    pushTx('proposal', 'Token deployed: ' + name + ' (' + symbol + ') · ' + supply.toLocaleString() + ' supply', tx.hash);
-    renderTokenList();
-    fetchBalance();
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
 
-    document.getElementById('tkName').value = '';
-    document.getElementById('tkSymbol').value = '';
-    document.getElementById('tkSupply').value = '';
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        require(balanceOf[from] >= amount, "Insufficient balance");
+        require(allowance[from][msg.sender] >= amount, "Not approved");
+        allowance[from][msg.sender] -= amount;
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(from, to, amount);
+        return true;
+    }
+}`;
 
-    toast('✓ Token deployed! ' + contractAddress.slice(0,10) + '...');
-  } catch(e) {
-    console.error(e);
-    toast('Deploy failed: ' + (e.message || '').slice(0, 70));
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg> Deploy Token on Arc';
-  }
+  // Encode for Remix URL
+  const encoded = encodeURIComponent(solidityCode);
+  const remixUrl = `https://remix.ethereum.org/?#code=${btoa(solidityCode)}&lang=sol&optimize=true&evmVersion=paris&version=soljson-v0.8.20+commit.a1b79de6.js`;
+  
+  // Show instructions modal
+  document.getElementById('remixModal').classList.add('open');
+  document.getElementById('remixCode').textContent = solidityCode;
+  document.getElementById('remixLink').href = remixUrl;
+  document.getElementById('remixLink').setAttribute('data-name', name);
+  document.getElementById('remixLink').setAttribute('data-symbol', symbol);
+  document.getElementById('remixLink').setAttribute('data-supply', supply);
+  document.getElementById('remixLink').setAttribute('data-decimals', decimals);
 }
 
 function renderTokenList() {
@@ -763,6 +765,61 @@ async function addTokenToWallet(address, symbol, decimals) {
   }
 }
 window.addTokenToWallet = addTokenToWallet;
+
+function saveDeployedToken() {
+  const addr = document.getElementById('pasteAddr').value.trim();
+  const link = document.getElementById('remixLink');
+  if (!addr || !addr.startsWith('0x')) { toast('Please enter a valid contract address'); return; }
+  const name = link.getAttribute('data-name') || 'My Token';
+  const symbol = link.getAttribute('data-symbol') || 'TKN';
+  const supply = parseInt(link.getAttribute('data-supply')) || 1000000;
+  const decimals = parseInt(link.getAttribute('data-decimals')) || 18;
+  const token = { name, symbol, supply, decimals, address: addr, txHash: addr, time: timeNow() };
+  deployedTokens.unshift(token);
+  localStorage.setItem('arc_tokens_v2', JSON.stringify(deployedTokens));
+  renderTokenList();
+  document.getElementById('remixModal').classList.remove('open');
+  document.getElementById('pasteAddr').value = '';
+  toast('✓ Token saved! ' + addr.slice(0,10) + '...');
+}
+window.saveDeployedToken = saveDeployedToken;
+window.deployToken = deployToken;
 </script>
+
+<!-- REMIX MODAL -->
+<div class="modal-overlay" id="remixModal" onclick="if(event.target===this)this.classList.remove('open')" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:999;display:none;align-items:center;justify-content:center;">
+  <div style="background:var(--bg2);border:0.5px solid var(--border2);border-radius:16px;padding:24px;width:520px;max-width:94vw;max-height:90vh;overflow-y:auto;">
+    <div style="font-size:16px;font-weight:800;margin-bottom:6px;">Deploy on Remix IDE</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">Follow these 3 steps to deploy your token on Arc Network:</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+      <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text);">
+        <span style="color:var(--accent);font-weight:700;">Step 1</span> — Click "Open in Remix" below
+      </div>
+      <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text);">
+        <span style="color:var(--accent);font-weight:700;">Step 2</span> — In Remix: Compile → Deploy & Run → Environment: Browser Extension (MetaMask/Rabby) → Deploy
+      </div>
+      <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text);">
+        <span style="color:var(--accent);font-weight:700;">Step 3</span> — Copy the contract address and paste it back here
+      </div>
+    </div>
+    <div style="margin-bottom:14px;">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--mono);">Contract code (auto-generated):</div>
+      <pre id="remixCode" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:10px;font-family:var(--mono);color:var(--text);overflow-x:auto;white-space:pre-wrap;max-height:160px;overflow-y:auto;"></pre>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <a id="remixLink" href="#" target="_blank" class="submit-btn" style="text-decoration:none;">
+        Open in Remix ↗
+      </a>
+      <button onclick="document.getElementById('remixModal').classList.remove('open')" style="padding:10px 18px;border-radius:8px;border:0.5px solid var(--border2);background:transparent;color:var(--muted);font-family:var(--font);font-size:13px;cursor:pointer;">Cancel</button>
+    </div>
+    <div style="border-top:0.5px solid var(--border);padding-top:14px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">After deploy, paste contract address here:</div>
+      <div style="display:flex;gap:8px;">
+        <input type="text" id="pasteAddr" placeholder="0x..." class="text-input" style="flex:1;"/>
+        <button onclick="saveDeployedToken()" class="submit-btn" style="white-space:nowrap;">Save Token</button>
+      </div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
