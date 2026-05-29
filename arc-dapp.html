@@ -225,8 +225,8 @@ footer{margin-top:auto;padding:28px 0;border-top:0.5px solid var(--border);posit
       <button class="tab-btn" onclick="switchTab('txlog',this)">
         <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>TX Log
       </button>
-      <button class="tab-btn" onclick="switchTab('token',this)">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>Token
+      <button class="tab-btn" onclick="switchTab('board',this)">
+        <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Board
       </button>
     </div>
   </div>
@@ -282,45 +282,24 @@ footer{margin-top:auto;padding:28px 0;border-top:0.5px solid var(--border);posit
       <div id="txLogList"><p class="empty">No transactions yet.</p></div>
     </div>
   </div>
-  <!-- TOKEN DEPLOY -->
-  <div class="section" id="token">
-    <div class="card" style="margin-bottom:14px;">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-        <span style="font-size:22px;">🪙</span>
-        <div>
-          <div style="font-size:15px;font-weight:700;">Deploy ERC-20 Token</div>
-          <div style="font-size:12px;color:var(--muted);">Create your own token on Arc Network. Gas ~$0.009 USDC.</div>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;">
-        <div>
-          <span class="np-label" style="margin-bottom:6px;display:block;">Token name</span>
-          <input type="text" class="text-input" id="tkName" placeholder="e.g. My Token" style="width:100%;"/>
-        </div>
-        <div>
-          <span class="np-label" style="margin-bottom:6px;display:block;">Symbol</span>
-          <input type="text" class="text-input" id="tkSymbol" placeholder="e.g. MTK" maxlength="6" style="width:100%;"/>
-        </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
-        <div>
-          <span class="np-label" style="margin-bottom:6px;display:block;">Total supply</span>
-          <input type="number" class="text-input" id="tkSupply" placeholder="e.g. 1000000" style="width:100%;"/>
-        </div>
-        <div>
-          <span class="np-label" style="margin-bottom:6px;display:block;">Decimals</span>
-          <input type="number" class="text-input" id="tkDecimals" value="18" min="0" max="18" style="width:100%;"/>
-        </div>
-      </div>
-      <button class="submit-btn" id="deployTokenBtn" onclick="window.deployToken && window.deployToken()">
+  <!-- BOARD -->
+  <div class="section" id="board">
+    <div class="new-proposal-card">
+      <span class="np-label">📝 Post a message on-chain</span>
+      <textarea class="text-input" id="boardMsg" rows="3" placeholder="Write anything — permanently stored on Arc blockchain..."></textarea>
+      <button class="submit-btn" id="boardBtn" onclick="postBoardMsg()" disabled>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg>
-        Deploy Token on Arc
+        Post on-chain
       </button>
-      <p style="font-size:11px;color:var(--muted);margin-top:8px;font-family:var(--mono);">Token will be minted to your wallet · Visible on ArcScan</p>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px;font-family:var(--mono);">Message is permanently stored on Arc · Gas ~$0.009 USDC</p>
     </div>
-
-    <!-- Deployed tokens list -->
-    <div id="tkList"></div>
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <span style="font-size:12px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;font-family:var(--mono);">Message board</span>
+        <span style="font-size:11px;color:var(--dim);font-family:var(--mono);" id="boardCount">0 messages</span>
+      </div>
+      <div id="boardList"><p class="empty">No messages yet. Be the first to post!</p></div>
+    </div>
   </div>
 
   <div style="height:40px;"></div>
@@ -444,7 +423,7 @@ async function fetchBalance() {
 
 function enableActions() {
   document.getElementById('submitPropBtn').disabled = false;
-  document.getElementById('deployTokenBtn').disabled = false;
+  if(document.getElementById('boardBtn')) document.getElementById('boardBtn').disabled = false;
   document.getElementById('gmCard').classList.remove('off');
   document.getElementById('gnCard').classList.remove('off');
   renderProposals();
@@ -656,170 +635,71 @@ window.switchTab = (id, el) => {
 renderProposals();
 renderGmFeed();
 renderTxLog();
-renderTokenList();
+
 
 /* ── TOKEN DEPLOY ── */
-let deployedTokens = JSON.parse(localStorage.getItem('arc_tokens_v2') || '[]');
 
-function deployToken() {
-  const name = document.getElementById('tkName').value.trim();
-  const symbol = document.getElementById('tkSymbol').value.trim().toUpperCase();
-  const supply = parseInt(document.getElementById('tkSupply').value) || 1000000;
-  const decimals = parseInt(document.getElementById('tkDecimals').value) || 18;
-  if (!name || !symbol) { toast('Fill in token name and symbol!'); return; }
 
-  // Generate Solidity code with user's values
-  const solidityCode = `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+/* ── BOARD ── */
+let boardMessages = JSON.parse(localStorage.getItem('arc_board_v1') || '[]');
 
-contract ${symbol}Token {
-    string public name = "${name}";
-    string public symbol = "${symbol}";
-    uint8 public decimals = ${decimals};
-    uint256 public totalSupply = ${supply} * 10**${decimals};
+async function postBoardMsg() {
+  if (!isConnected) { toast('Connect your wallet first!'); return; }
+  const msg = document.getElementById('boardMsg').value.trim();
+  if (!msg) { toast('Please write a message!'); return; }
+  if (msg.length > 280) { toast('Max 280 characters!'); return; }
 
-    mapping(address => uint256) public balanceOf;
-    mapping(address => mapping(address => uint256)) public allowance;
+  const btn = document.getElementById('boardBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> Posting...';
 
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
+  try {
+    const tx = await signer.sendTransaction({ to: userAddress, value: '0x0' });
+    toast('⏳ Posting message on Arc...');
+    await tx.wait();
 
-    constructor() {
-        balanceOf[msg.sender] = totalSupply;
-        emit Transfer(address(0), msg.sender, totalSupply);
-    }
-
-    function transfer(address to, uint256 amount) external returns (bool) {
-        require(balanceOf[msg.sender] >= amount, "Insufficient balance");
-        balanceOf[msg.sender] -= amount;
-        balanceOf[to] += amount;
-        emit Transfer(msg.sender, to, amount);
-        return true;
-    }
-
-    function approve(address spender, uint256 amount) external returns (bool) {
-        allowance[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
-        return true;
-    }
-
-    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
-        require(balanceOf[from] >= amount, "Insufficient balance");
-        require(allowance[from][msg.sender] >= amount, "Not approved");
-        allowance[from][msg.sender] -= amount;
-        balanceOf[from] -= amount;
-        balanceOf[to] += amount;
-        emit Transfer(from, to, amount);
-        return true;
-    }
-}`;
-
-  // Encode for Remix URL
-  const encoded = encodeURIComponent(solidityCode);
-  const remixUrl = `https://remix.ethereum.org/?#code=${btoa(solidityCode)}&lang=sol&optimize=true&evmVersion=paris&version=soljson-v0.8.20+commit.a1b79de6.js`;
-  
-  // Show instructions modal
-  document.getElementById('remixModal').classList.add('open');
-  document.getElementById('remixCode').textContent = solidityCode;
-  document.getElementById('remixLink').href = remixUrl;
-  document.getElementById('remixLink').setAttribute('data-name', name);
-  document.getElementById('remixLink').setAttribute('data-symbol', symbol);
-  document.getElementById('remixLink').setAttribute('data-supply', supply);
-  document.getElementById('remixLink').setAttribute('data-decimals', decimals);
+    const entry = {
+      msg,
+      addr: userAddress,
+      short: userAddress.slice(0,6)+'...'+userAddress.slice(-4),
+      hash: tx.hash,
+      time: new Date().toLocaleString('en-US', {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})
+    };
+    boardMessages.unshift(entry);
+    localStorage.setItem('arc_board_v1', JSON.stringify(boardMessages));
+    pushTx('vote', 'Board: "' + msg.slice(0,40) + (msg.length>40?'...':'') + '"', tx.hash);
+    renderBoard();
+    fetchBalance();
+    document.getElementById('boardMsg').value = '';
+    toast('✓ Message posted on Arc!');
+  } catch(e) {
+    toast('Failed: ' + (e.message||'').slice(0,60));
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2L11 13"/><path d="M22 2L15 22l-4-9-9-4 20-7z"/></svg> Post on-chain';
+  }
 }
+window.postBoardMsg = postBoardMsg;
 
-function renderTokenList() {
-  const el = document.getElementById('tkList');
+function renderBoard() {
+  const el = document.getElementById('boardList');
+  const ct = document.getElementById('boardCount');
   if (!el) return;
-  if (!deployedTokens.length) { el.innerHTML = '<p class="empty">No tokens deployed yet.</p>'; return; }
-  el.innerHTML = deployedTokens.slice(0,10).map(t=>`
-    <div class="card" style="margin-bottom:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-        <div>
-          <div style="font-size:14px;font-weight:700;">${t.name} <span style="color:var(--muted);font-weight:400;font-family:var(--mono);font-size:12px;">${t.symbol}</span></div>
-          <div style="font-size:11px;font-family:var(--mono);color:var(--muted);margin-top:3px;">${t.address}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0;">
-          <div style="font-size:14px;font-weight:700;color:var(--accent);font-family:var(--mono);">${Number(t.supply).toLocaleString()}</div>
-          <div style="font-size:10px;color:var(--muted);">${t.symbol} · ${t.time}</div>
-        </div>
+  ct.textContent = boardMessages.length + ' message' + (boardMessages.length !== 1 ? 's' : '');
+  if (!boardMessages.length) { el.innerHTML = '<p class="empty">No messages yet. Be the first to post!</p>'; return; }
+  el.innerHTML = boardMessages.slice(0, 20).map(m => `
+    <div style="padding:14px 0;border-bottom:0.5px solid var(--border);">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <span style="font-size:12px;font-family:var(--mono);color:var(--accent);">${m.short}</span>
+        <span style="font-size:11px;color:var(--dim);font-family:var(--mono);">${m.time}</span>
       </div>
-      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
-        <a href="${ARC.explorerUrl}/address/${t.address}" target="_blank" class="tx-link" style="font-size:11px;">ArcScan ↗</a>
-        <button onclick="navigator.clipboard.writeText('${t.address}').then(()=>toast('✓ Address copied!'))" style="font-size:11px;font-family:var(--mono);color:var(--accent);background:none;border:none;cursor:pointer;padding:0;">Copy address</button>
-        <button onclick="addTokenToWallet('${t.address}','${t.symbol}',${t.decimals})" style="font-size:11px;font-family:var(--mono);color:var(--green);background:none;border:none;cursor:pointer;padding:0;">Add to wallet</button>
-      </div>
+      <p style="font-size:14px;color:var(--text);line-height:1.55;">${m.msg}</p>
+      <a href="${ARC.explorerUrl}/tx/${m.hash}" target="_blank" style="font-size:10px;font-family:var(--mono);color:var(--muted);text-decoration:none;margin-top:6px;display:inline-block;">on-chain ↗</a>
     </div>
   `).join('');
 }
-
-async function addTokenToWallet(address, symbol, decimals) {
-  try {
-    await window.ethereum.request({
-      method: 'wallet_watchAsset',
-      params: { type:'ERC20', options:{ address, symbol, decimals } }
-    });
-    toast('✓ Token added to wallet!');
-  } catch(e) {
-    toast('Could not add to wallet');
-  }
-}
-window.addTokenToWallet = addTokenToWallet;
-
-function saveDeployedToken() {
-  const addr = document.getElementById('pasteAddr').value.trim();
-  const link = document.getElementById('remixLink');
-  if (!addr || !addr.startsWith('0x')) { toast('Please enter a valid contract address'); return; }
-  const name = link.getAttribute('data-name') || 'My Token';
-  const symbol = link.getAttribute('data-symbol') || 'TKN';
-  const supply = parseInt(link.getAttribute('data-supply')) || 1000000;
-  const decimals = parseInt(link.getAttribute('data-decimals')) || 18;
-  const token = { name, symbol, supply, decimals, address: addr, txHash: addr, time: timeNow() };
-  deployedTokens.unshift(token);
-  localStorage.setItem('arc_tokens_v2', JSON.stringify(deployedTokens));
-  renderTokenList();
-  document.getElementById('remixModal').classList.remove('open');
-  document.getElementById('pasteAddr').value = '';
-  toast('✓ Token saved! ' + addr.slice(0,10) + '...');
-}
-window.saveDeployedToken = saveDeployedToken;
-window.deployToken = deployToken;
+renderBoard();
 </script>
 
-<!-- REMIX MODAL -->
-<div class="modal-overlay" id="remixModal" onclick="if(event.target===this)this.classList.remove('open')" style="position:fixed;inset:0;background:rgba(0,0,0,0.8);backdrop-filter:blur(8px);z-index:999;display:none;align-items:center;justify-content:center;">
-  <div style="background:var(--bg2);border:0.5px solid var(--border2);border-radius:16px;padding:24px;width:520px;max-width:94vw;max-height:90vh;overflow-y:auto;">
-    <div style="font-size:16px;font-weight:800;margin-bottom:6px;">Deploy on Remix IDE</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:16px;">Follow these 3 steps to deploy your token on Arc Network:</div>
-    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
-      <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text);">
-        <span style="color:var(--accent);font-weight:700;">Step 1</span> — Click "Open in Remix" below
-      </div>
-      <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text);">
-        <span style="color:var(--accent);font-weight:700;">Step 2</span> — In Remix: Compile → Deploy & Run → Environment: Browser Extension (MetaMask/Rabby) → Deploy
-      </div>
-      <div style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text);">
-        <span style="color:var(--accent);font-weight:700;">Step 3</span> — Copy the contract address and paste it back here
-      </div>
-    </div>
-    <div style="margin-bottom:14px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-family:var(--mono);">Contract code (auto-generated):</div>
-      <pre id="remixCode" style="background:var(--bg3);border:0.5px solid var(--border);border-radius:8px;padding:12px;font-size:10px;font-family:var(--mono);color:var(--text);overflow-x:auto;white-space:pre-wrap;max-height:160px;overflow-y:auto;"></pre>
-    </div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-      <a id="remixLink" href="#" target="_blank" class="submit-btn" style="text-decoration:none;">
-        Open in Remix ↗
-      </a>
-      <button onclick="document.getElementById('remixModal').classList.remove('open')" style="padding:10px 18px;border-radius:8px;border:0.5px solid var(--border2);background:transparent;color:var(--muted);font-family:var(--font);font-size:13px;cursor:pointer;">Cancel</button>
-    </div>
-    <div style="border-top:0.5px solid var(--border);padding-top:14px;">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;">After deploy, paste contract address here:</div>
-      <div style="display:flex;gap:8px;">
-        <input type="text" id="pasteAddr" placeholder="0x..." class="text-input" style="flex:1;"/>
-        <button onclick="saveDeployedToken()" class="submit-btn" style="white-space:nowrap;">Save Token</button>
-      </div>
-    </div>
-  </div>
-</div>
 </body>
 </html>
