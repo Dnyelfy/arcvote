@@ -47,7 +47,12 @@ header{padding:22px 0;border-bottom:0.5px solid var(--border);position:sticky;to
 .connect-btn.connected{border-color:var(--green);color:var(--green);background:var(--green-bg);font-family:var(--mono);font-size:11px;}
 
 /* Web3Modal override — dark theme matching */
-w3m-button{--w3m-accent:#5b6bff;}
+.wallet-btn{background:#5b6bff;color:#fff;border:none;border-radius:8px;padding:8px 14px;
+  font:inherit;font-size:13px;font-weight:600;cursor:pointer;font-family:Syne,sans-serif;}
+.wallet-btn:hover{filter:brightness(1.08);}
+.wallet-btn.on{background:#1b2340;color:#9fb0ff;}
+#loadErrorBar{position:fixed;left:0;right:0;top:0;z-index:99999;padding:10px 14px;
+  background:#7f1d1d;color:#fff;font:13px/1.5 ui-monospace,Menlo,monospace;text-align:center;}
 
 .hero{padding:48px 0 40px;}
 .eyebrow{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);color:var(--accent);letter-spacing:0.12em;text-transform:uppercase;padding:5px 12px;border-radius:99px;background:var(--accent-glow);border:0.5px solid rgba(91,107,255,0.3);margin-bottom:18px;}
@@ -180,8 +185,7 @@ footer{margin-top:auto;padding:28px 0;border-top:0.5px solid var(--border);posit
       <div class="header-right">
         <div class="net-pill"><span class="dot"></span>Arc Testnet</div>
         <span class="bal-chip" id="balChip">0.00 USDC</span>
-        <!-- Web3Modal button — tüm cüzdanları destekler -->
-        <w3m-button balance="hide" size="sm"></w3m-button>
+        <button id="connectBtn" class="wallet-btn">Connect Wallet</button>
       </div>
     </div>
   </div>
@@ -381,13 +385,47 @@ footer{margin-top:auto;padding:28px 0;border-top:0.5px solid var(--border);posit
 
 <div class="toast-wrap"><div class="toast" id="toast"></div></div>
 
-<script type="module">
-import { createWeb3Modal, defaultConfig } from 'https://esm.sh/@web3modal/ethers@4.2.3';
-import { BrowserProvider, formatUnits, Contract } from 'https://esm.sh/ethers@6.7.1';
+<script>
+/* ethers used to arrive as an ES module from esm.sh. When that import failed the
+   whole module never ran: no wallet, no buttons, no error in the console — the
+   page just sat there looking fine. Loading it as a classic script lets a failed
+   source fall through to the next one, and a total failure is announced instead
+   of swallowed. */
+window.__ethersReady = (function () {
+  var sources = [
+    "https://cdnjs.cloudflare.com/ajax/libs/ethers/6.13.2/ethers.umd.min.js",
+    "https://cdn.jsdelivr.net/npm/ethers@6.13.2/dist/ethers.umd.min.js",
+    "https://unpkg.com/ethers@6.13.2/dist/ethers.umd.min.js",
+    "vendor/ethers.umd.min.js"
+  ];
+  return new Promise(function (resolve, reject) {
+    (function next(i) {
+      if (i >= sources.length) { reject(new Error("ethers could not be loaded")); return; }
+      var el = document.createElement("script");
+      el.src = sources[i];
+      el.onload = function () { window.ethers ? resolve(window.ethers) : next(i + 1); };
+      el.onerror = function () { next(i + 1); };
+      document.head.appendChild(el);
+    })(0);
+  });
+})();
+
+function __avBanner(text) {
+  var b = document.getElementById("loadErrorBar");
+  if (!b) { b = document.createElement("div"); b.id = "loadErrorBar"; document.body.appendChild(b); }
+  b.textContent = text;
+}
+window.addEventListener("error", function (e) {
+  __avBanner("Error: " + (e.message || e.error) + " — press F12 for details");
+});
+window.addEventListener("unhandledrejection", function (e) {
+  __avBanner("Error: " + ((e.reason && e.reason.message) || e.reason));
+});
+
+window.__ethersReady.then(function (E) {
+  var BrowserProvider = E.BrowserProvider, formatUnits = E.formatUnits, Contract = E.Contract;
 
 /* ── CONFIG ── */
-const PROJECT_ID = '65f38a70090f3dfcc7d06364559626b3';
-
 const arcTestnet = {
   chainId: 5042002,
   name: 'Arc Testnet',
@@ -396,31 +434,38 @@ const arcTestnet = {
   rpcUrl: 'https://rpc.testnet.arc.network',
 };
 
-const metadata = {
-  name: 'ArcVote',
-  description: 'Onchain governance on Arc Network',
-  url: 'https://arcvote.app',
-  icons: ['https://arcvote.app/icon.png'],
-};
+/* ── WALLET ──
+   WalletConnect is gone. `@web3modal/ethers` is deprecated — npm now points at
+   Reown AppKit — and it was the only way in: window.ethereum was never touched,
+   so a WalletConnect outage locked out users who had MetaMask installed. Arc
+   Testnet is a custom chain that mobile wallets do not carry anyway, so the QR
+   path was theoretical while the extension path is the one people actually use. */
+const CHAIN_ID_HEX = '0x' + arcTestnet.chainId.toString(16);
 
-const modal = createWeb3Modal({
-  ethersConfig: defaultConfig({ metadata }),
-  chains: [arcTestnet],
-  projectId: PROJECT_ID,
-  themeMode: 'dark',
-  themeVariables: {
-    '--w3m-accent': '#5b6bff',
-    '--w3m-border-radius-master': '8px',
-    '--w3m-font-family': 'Syne, sans-serif',
-  },
-  featuredWalletIds: [
-    'c57ca95b47569778a828d19178114f4db188b89b763c899ba0be274e97267d96', // MetaMask
-    'a797aa35c0fadbfc1a53e7f675162ed5226968b44a19ee3d24385c64d1d3c393', // Phantom
-    'fd20dc426fb37566d803205b19bbc1d4096b248ac04548e3cfb6b3a38bd033aa', // Coinbase
-    '4622a2b2d6af1c9844944291e5e7351a6aa24cd7b23099efac1b2fd875da31a0', // Trust
-    '1ae92b26df02f0abca6304df07debccd18262fdf5fe82daa81593582dac9a369', // Rainbow
-  ],
-});
+async function ensureArcChain(eth) {
+  const current = await eth.request({ method: 'eth_chainId' });
+  if (current === CHAIN_ID_HEX) return;
+  try {
+    await eth.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: CHAIN_ID_HEX }] });
+  } catch (err) {
+    // 4902 means the wallet has never heard of this chain, so offer to add it.
+    if (err && (err.code === 4902 || (err.data && err.data.originalError &&
+        err.data.originalError.code === 4902))) {
+      await eth.request({
+        method: 'wallet_addEthereumChain',
+        params: [{
+          chainId: CHAIN_ID_HEX,
+          chainName: arcTestnet.name,
+          nativeCurrency: { name: arcTestnet.currency, symbol: arcTestnet.currency, decimals: 18 },
+          rpcUrls: [arcTestnet.rpcUrl],
+          blockExplorerUrls: [arcTestnet.explorerUrl]
+        }]
+      });
+    } else {
+      throw err;
+    }
+  }
+}
 
 /* ── ARC CONFIG ── */
 const EXPLORER = 'https://testnet.arcscan.app';
@@ -472,23 +517,70 @@ let txLog = [], gmFeed = [];
 let nextId = Math.max(...proposals.map(p => p.id)) + 1;
 
 /* ── WALLET EVENTS ── */
-modal.subscribeProvider(async ({ provider: p, address, isConnected: ic }) => {
-  if (ic && p && address) {
-    provider = new BrowserProvider(p);
+const connectBtn = document.getElementById('connectBtn');
+
+function setDisconnected(label) {
+  isConnected = false; signer = null; userAddress = null;
+  document.getElementById('balChip').style.display = 'none';
+  connectBtn.textContent = label || 'Connect Wallet';
+  connectBtn.classList.remove('on');
+  disableActions();
+}
+
+async function connectWallet() {
+  const eth = window.ethereum;
+  if (!eth) {
+    toast('No wallet found — install MetaMask to use ArcVote.');
+    return;
+  }
+  try {
+    connectBtn.disabled = true;
+    const accounts = await eth.request({ method: 'eth_requestAccounts' });
+    if (!accounts || !accounts.length) { setDisconnected(); return; }
+    // Switch before building the provider: a signer bound to the wrong chain
+    // sends transactions that fail with nothing useful to show the user.
+    await ensureArcChain(eth);
+
+    provider = new BrowserProvider(eth);
     signer = await provider.getSigner();
-    userAddress = address;
+    userAddress = accounts[0];
     isConnected = true;
-    fetchBalance();
+    connectBtn.textContent = userAddress.slice(0, 6) + '…' + userAddress.slice(-4);
+    connectBtn.classList.add('on');
     document.getElementById('balChip').style.display = 'inline-flex';
+    fetchBalance();
     enableActions();
     toast('✓ Connected to Arc Testnet!');
     loadFromChain();
-  } else {
-    isConnected = false;
-    document.getElementById('balChip').style.display = 'none';
-    disableActions();
+  } catch (err) {
+    // 4001 is the user closing the prompt, which is a choice, not a fault.
+    if (err && err.code === 4001) toast('Connection cancelled.');
+    else toast('Could not connect: ' + ((err && err.message) || err));
+    setDisconnected();
+  } finally {
+    connectBtn.disabled = false;
   }
+}
+
+connectBtn.addEventListener('click', () => {
+  if (isConnected) return;
+  connectWallet();
 });
+
+if (window.ethereum) {
+  window.ethereum.on?.('accountsChanged', (accs) => {
+    if (!accs || !accs.length) setDisconnected();
+    else connectWallet();
+  });
+  window.ethereum.on?.('chainChanged', () => location.reload());
+  // Reconnect silently if the wallet is already authorised for this site, so a
+  // reload does not make the user click through the prompt again.
+  window.ethereum.request({ method: 'eth_accounts' })
+    .then(a => { if (a && a.length) connectWallet(); })
+    .catch(() => {});
+}
+
+setDisconnected();
 
 async function fetchBalance() {
   try {
@@ -869,13 +961,30 @@ function renderBoard() {
 renderBoard();
 /* ── QUEST HUB ENGINE ── */
 const BS_API = 'https://testnet.arcscan.app/api/v2';
-const j = (u) => fetch(u).then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+// A request that never answers is not an error, so no catch can rescue it:
+// "Verify from chain" would spin forever with nothing to tell the user.
+const j = (u, ms = 12000) => {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), ms);
+  return fetch(u, { signal: ctl.signal })
+    .then(r => { if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .catch(e => {
+      if (e && e.name === 'AbortError') throw new Error('explorer timed out after ' + (ms/1000) + 's');
+      throw e;
+    })
+    .finally(() => clearTimeout(timer));
+};
 
-async function pagedTxs(address, pages = 3) {
+// Quests are lifetime achievements: deploying a contract or bridging once counts
+// forever. Reading only the newest 150 transactions meant a builder who shipped
+// months ago saw every box empty, and the more they used the chain the further
+// their own history slid out of view. Ten pages of outgoing transactions covers
+// a real history; `filter=from` keeps incoming noise out of the walk.
+async function pagedTxs(address, pages = 10) {
   let items = [], pp = null;
   for (let p = 0; p < pages; p++) {
-    let url = `${BS_API}/addresses/${address}/transactions`;
-    if (pp) url += '?' + new URLSearchParams(pp).toString();
+    let url = `${BS_API}/addresses/${address}/transactions?filter=from`;
+    if (pp) url += '&' + new URLSearchParams(pp).toString();
     const page = await j(url);
     items = items.concat(page.items || []);
     if (!page.next_page_params) break;
@@ -1086,6 +1195,10 @@ function shareQuests() {
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(txt)}&url=${encodeURIComponent(location.href.split('?')[0])}`,'_blank');
 }
 window.shareQuests = shareQuests;
+
+}, function (err) {
+  __avBanner("ethers could not be loaded (" + err.message + "). A network blocker or CDN outage may be the cause.");
+});
 </script>
 
 </body>
