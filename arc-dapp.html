@@ -1035,7 +1035,9 @@ async function verifyQuests() {
     const mset = new Set(out.map(t => String(t.method || '').toLowerCase()));
     const has = (...k) => [...mset].some(m => k.some(x => m.includes(x)));
     const didSwap = has('swap','exactinput','exactoutput','trade');
-    const didBridge = has('bridge','depositfor','sendmessage','relay','burnlocked');
+    // ccipSend is how Pay on Arc bridges, and it was missing from this list: the
+    // quest could not be completed by using the tool it now points at.
+    const didBridge = has('bridge','ccipsend','depositfor','sendmessage','relay','burnlocked','cctp');
     const registeredAgent = out.some(t => t.to && t.to.hash && [AGENT_IDENTITY, AGENT_REPUTATION].map(a=>a.toLowerCase()).includes(t.to.hash.toLowerCase()));
     const { streak, today } = calcStreak(gmTimes);
 
@@ -1074,12 +1076,12 @@ async function verifyQuests() {
       { ok: streak >= 3,   xp: 10, t: 'GM streak 3+ days 🔥',         h: streak>=3?`Day ${streak} and counting`:`Current: ${streak}. Send GM daily — the pack button does it in one tap.`, act: ['tab','gm'] },
       { ok: votedHere,     xp: 10, t: 'Vote on a proposal',           h: votedHere?'Vote found on-chain ✓':'Cast one vote in the Vote tab.', act: ['tab','vote'] },
       { ok: postedHere,    xp: 10, t: 'Post on the message board',    h: postedHere?'Post found on-chain ✓':'Write anything in the Board tab.', act: ['tab','board'] },
-      { ok: deployed,      xp: 15, t: 'Deploy a contract',            h: deployed?'Builder signal ✓':'Strongest signal there is — try zkcodex.', act: ['link','https://zkcodex.com'] },
-      { ok: nftCount > 0,  xp: 10, t: 'Hold an NFT / Arc name',       h: nftCount>0?`${nftCount} collection(s) ✓`:'Mint at OmniHub or register an InfinityName.', act: ['link','https://omnihub.xyz'] },
+      { ok: deployed,      xp: 15, t: 'Deploy a contract',            h: deployed?'Builder signal ✓':'Strongest signal there is — deploy anything from your own tooling.' },
+      { ok: nftCount > 0,  xp: 10, t: 'Hold an NFT / Arc name',       h: nftCount>0?`${nftCount} collection(s) ✓`:'Mint any ERC-721 or register a name on Arc.' },
       { ok: didSwap,       xp: 10, t: 'Make a swap',                  h: didSwap?'Swap detected ✓':'One DEX/FX swap on Arc covers it.' },
-      { ok: didBridge,     xp: 10, t: 'Bridge assets',                h: didBridge?'Bridge detected ✓':'CCTP / thirdweb bridge in or out.', act: ['link','https://thirdweb.com/arc-testnet'] },
-      { ok: registeredAgent, xp: 15, t: 'Register an AI agent 🤖',    h: registeredAgent?'ERC-8004 agent found on-chain ✓':'Register one in 30s at Arc Agent Forge.', act: ['link','https://arc-agent-forge.vercel.app'] },
-      { ok: balance >= 1,  xp: 5,  t: 'Keep 1+ USDC for gas',         h: `${balance.toFixed(2)} USDC in wallet.`, act: ['link','https://faucet.circle.com'] },
+      { ok: didBridge,     xp: 10, t: 'Bridge assets',                h: didBridge?'Bridge detected ✓':'Move assets in or out of Arc with any bridge.' },
+      { ok: registeredAgent, xp: 15, t: 'Register an AI agent 🤖',    h: registeredAgent?'ERC-8004 agent found on-chain ✓':'Register an ERC-8004 identity on Arc.' },
+      { ok: balance >= 1,  xp: 5,  t: 'Keep 1+ USDC for gas',         h: `${balance.toFixed(2)} USDC in wallet.` },
     ];
     const xp = Q.reduce((a,q)=>a+(q.ok?q.xp:0),0);
     const maxXp = Q.reduce((a,q)=>a+q.xp,0);
